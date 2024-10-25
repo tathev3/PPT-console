@@ -1,8 +1,11 @@
-#include "controller.hpp"
-#include <iostream>
+#include "Controller.hpp"
+#include "CommandCreator.hpp"
 
 int main() {
-    Controller controller;
-    controller.start(std::cin); 
+    
+    cli::Controller controller;
+    controller.start();
+
     return 0;
 }
+

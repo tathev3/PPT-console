@@ -1,3 +1,4 @@
+// parser.cpp
 #include "parser.hpp"
 #include <iostream>
 #include <stdexcept>
@@ -5,22 +6,30 @@
 
 namespace cli {
 
+    Parser::Parser(const std::string& input) : m_Lexer(input), m_SyntaxAnalyzer() {
+        parse();
+    }
+
+    // Lexer Implementation
     Parser::Lexer::Lexer(const std::string& input) : m_Input(input), m_Position(0) {}
 
     Parser::Token Parser::Lexer::getToken() {
-        rawToken token = extractToken();
+        std::string token = extractToken();
         TokenType type = determineType(token);
+        if (type == TokenType::Null) {
+            return { "", TokenType::Null };
+        }
         validate(type, token);
         return { token, type };
     }
 
-    Parser::rawToken Parser::Lexer::extractToken() {
-        while (m_Position < m_Input.size() && m_Input[m_Position] == ' ') {
+    std::string Parser::Lexer::extractToken() {
+        while (m_Position < m_Input.size() && std::isspace(m_Input[m_Position])) {
             ++m_Position;
         }
-
-        if (m_Position >= m_Input.size()) return "";
-
+        if (m_Position >= m_Input.size()) {
+            return "";
+        }
         size_t start = m_Position;
         if (m_Input[start] == '"') {
             ++m_Position;
@@ -30,62 +39,64 @@ namespace cli {
             ++m_Position;
             return m_Input.substr(start, m_Position - start);
         }
-
-        while (m_Position < m_Input.size() && m_Input[m_Position] != ' ') {
+        while (m_Position < m_Input.size() && !std::isspace(m_Input[m_Position])) {
             ++m_Position;
         }
         return m_Input.substr(start, m_Position - start);
     }
 
-    Parser::TokenType Parser::Lexer::determineType(const rawToken& token) {
+    Parser::TokenType Parser::Lexer::determineType(const std::string& token) {
         if (token.empty()) {
             return TokenType::Null;
-        } else if (token[0] == '-') {
+        }
+        if (token[0] == '-') {
             return TokenType::Option;
-        } else if (token.front() == '"' && token.back() == '"') {
+        }
+        if (token.front() == '"' && token.back() == '"') {
             return TokenType::Argument;
-        } else {
-            return TokenType::Name;
         }
+        return TokenType::Name;
     }
 
-    void Parser::Lexer::validate(TokenType type, const rawToken& token) {
+    void Parser::Lexer::validate(TokenType type, const std::string& token) {
         switch (type) {
-            case TokenType::Name:
-                validateWord(token);
-                break;
-            case TokenType::Option:
-                validateOption(token);
-                break;
-            case TokenType::Argument:
-                validateArgument(token);
-                break;
-            default:
-                throw std::runtime_error("Unknown token type");
+            case TokenType::Name: validateWord(token); break;
+            case TokenType::Option: validateOption(token); break;
+            case TokenType::Argument: validateArgument(token); break;
+            default: throw std::runtime_error("Unknown token type");
         }
     }
 
-    void Parser::Lexer::validateWord(const rawToken& token) {
+    void Parser::Lexer::validateWord(const std::string& token) {
         for (char c : token) {
-            if (!isalpha(c)) {
+            if (!std::isalpha(c)) {
                 throw std::runtime_error("Word token must contain only letters");
             }
         }
     }
 
-    void Parser::Lexer::validateOption(const rawToken& token) {
+    void Parser::Lexer::validateOption(const std::string& token) {
         if (token.size() < 2 || token[0] != '-') {
             throw std::runtime_error("Invalid option format");
         }
     }
 
-    void Parser::Lexer::validateArgument(const rawToken& token) {
+    void Parser::Lexer::validateArgument(const std::string& token) {
         if (token.front() != '"' || token.back() != '"') {
             throw std::runtime_error("Argument token must be enclosed in double quotes");
         }
     }
 
-    Parser::SyntaxAnalyzer::SyntaxAnalyzer() : m_CurrentState(State::S_Start) {}
+    // SyntaxAnalyzer Implementation
+    Parser::SyntaxAnalyzer::SyntaxAnalyzer() : m_CurrentState(State::S_Start) {
+        m_StateMap = {
+            {State::S_Start, {{TokenType::Name, State::S_Name}}},
+            {State::S_Name, {{TokenType::Option, State::S_Opt}, {TokenType::Argument, State::S_End}}},
+            {State::S_Opt, {{TokenType::Option, State::S_Opt}, {TokenType::Argument, State::S_Arg}}},
+            {State::S_Arg, {{TokenType::Option, State::S_Opt}, {TokenType::Argument, State::S_Arg}, {TokenType::Name, State::S_End}}},
+            {State::S_End, {}},
+        };
+    }
 
     bool Parser::SyntaxAnalyzer::isValid(const Token& validToken) {
         State nextState = getNextState(validToken.second);
@@ -109,10 +120,7 @@ namespace cli {
         return State::S_Dead;
     }
 
-    Parser::Parser(const std::string& input) : m_Lexer(input), m_SyntaxAnalyzer() {
-        parse();
-    }
-
+    // Parse function
     void Parser::parse() {
         try {
             Token validToken = m_Lexer.getToken();
@@ -128,9 +136,8 @@ namespace cli {
             while (true) {
                 validToken = m_Lexer.getToken();
                 if (validToken.second == TokenType::Null) {
-                    break; 
+                    break;
                 }
-
                 if (!m_SyntaxAnalyzer.isValid(validToken)) {
                     std::cerr << "Invalid syntax: " << validToken.first << std::endl;
                     break;
@@ -147,3 +154,4 @@ namespace cli {
     }
 
 } // namespace cli
+
