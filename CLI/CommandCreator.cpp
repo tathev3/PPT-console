@@ -1,6 +1,6 @@
 #include "CommandCreator.hpp"
 #include "CommandInfo.hpp"
-#include "SlideMaker.hpp" // Assuming you have a SlideMaker class to create slides
+#include "SlideMaker.hpp" 
 
 cli::CommandCreator::CommandCreator() {
     setValidCommands();
